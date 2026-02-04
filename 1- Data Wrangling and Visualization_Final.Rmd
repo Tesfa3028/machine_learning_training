@@ -1,0 +1,1229 @@
+<<<<<<< HEAD
+---
+title: "Data_Wrangling"
+output:
+  html_document: default
+  pdf_document: default
+date: "2026-01-06"
+---
+
+
+```{r}
+
+library(rstatix)
+library(tidyverse)
+library(pastecs)
+library(knitr)
+library(epitools)
+library(Epi)
+library(gtsummary)
+library(janitor)
+library(scales)     
+library(viridis)    
+options(scipen=999) 
+```
+
+
+## Question 1: Data Cleaning
+
+
+```{r}
+## Load the first datasets- assignment1_can_path_demographics
+
+data_1 <- read_csv("assignment1_can_path_demographics.csv")
+```
+
+
+```{r}
+## Examining data structure- Columns, and data types
+
+glimpse(data_1)
+```
+
+
+```{r}
+## Examining data structure- Unique values 
+
+table(data_1$SDC_GENDER)
+table(data_1$SDC_INCOME)
+
+```
+
+
+
+```{r}
+## Identify duplicates- rows
+
+duplicate_rows <- data_1[duplicated(data_1), ]
+
+duplicate_rows
+
+```
+
+
+```{r}
+## Identify duplicates- any
+
+any(duplicated(data_1))
+```
+
+### No duplicates, outliers and inconsistent formatting found in data_1
+
+
+```{r}
+## Recoding gender
+
+data_1 <- data_1 %>%
+	mutate(gender_recode = case_when(
+		SDC_GENDER == 1 ~ "1_Male",
+		SDC_GENDER == 2 ~ "2_Female"
+    	))
+data_1$gender_recode <- as.factor(data_1$gender_recode)
+table(data_1$SDC_GENDER, data_1$gender_recode)
+```
+
+
+```{r}
+## Recoding income
+
+data_1 <- data_1 %>%
+	mutate(income_recode = case_when(
+		SDC_INCOME == 1 ~ "1_Less than 10 000 $",
+    SDC_INCOME == 2 ~ "2_10 000 $ - 24 999 $",
+		SDC_INCOME == 3 ~ "3_25 000 $ - 49 999 $",
+		SDC_INCOME == 4 ~ "4_50 000 $ - 74 999 $",
+    SDC_INCOME == 5 ~ "5_75 000 $ - 99 999 $",
+		SDC_INCOME == 6 ~ "6_100 000 $ - 149 999 $",
+    SDC_INCOME == 7 ~ "7_150 000 $ - 199 999 $",
+    SDC_INCOME == 8 ~	"8_200 000 $ or more"
+	))
+
+data_1$income_recode <- as.factor(data_1$income_recode)
+table(data_1$SDC_INCOME, data_1$income_recode)
+
+
+```
+
+```{r}
+## Checking the cleaned data
+
+glimpse(data_1)
+```
+
+
+```{r}
+## Load the second dataset- assignment1_can_path_health
+
+data_2 <- read_csv("assignment1_can_path_health.csv")
+```
+
+
+```{r}
+## Examining data structure- Columns, and data types
+
+glimpse(data_2)
+```
+
+```{r}
+## Examining data structure- Unique values 
+
+table(data_2$HS_GEN_HEALTH)
+table(data_2$DIS_ASTHMA_EVER)
+table(data_2$NUT_VEG_QTY)
+table(data_2$NUT_FRUITS_QTY)
+
+## table(data_2$PA_TOTAL_SHORT) ## Too large to display
+```
+
+
+
+```{r}
+## Identify duplicates- rows
+
+duplicate_rows <- data_2[duplicated(data_2), ]
+duplicate_rows
+```
+
+```{r}
+## Identify duplicates- any
+
+any(duplicated(data_2))
+```
+### No duplicates found in data_2
+
+
+### Identifing and correcting outliers- NUT_VEG_QTY
+
+#### I am thinking that other approaches such as transformation are not under the scope of this assignment and I have followed the data cleasing approaches included in the course materials.
+
+```{r}
+
+table(data_2$NUT_VEG_QTY)
+summary(data_2$NUT_VEG_QTY)
+```
+
+
+```{r}
+## Boxplot to see outliers
+
+boxplot_veg <- ggplot(data_2, aes(NUT_VEG_QTY)) + 
+              geom_boxplot() + 
+              coord_flip()  
+
+plot(boxplot_veg)
+```
+
+
+```{r}
+ # Recoding to correct for outliers 
+
+data_2 <- data_2 %>%
+          mutate(nut_veg_qty = case_when(
+            NUT_VEG_QTY < 1 ~ 1,
+            NUT_VEG_QTY > 5 ~ 5,
+            TRUE ~ NUT_VEG_QTY
+          ))
+
+table (data_2$nut_veg_qty)
+
+summary(data_2$nut_veg_qty)
+
+```
+
+```{r}
+## Boxplot to see the outliers after recoding/ correction
+
+boxplot_veg <- ggplot (data_2, aes(nut_veg_qty)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_veg)
+
+
+```
+
+### Identifing and correcting outliers- NUT_FRUITS_QTY
+
+```{r}
+summary(data_2$NUT_FRUITS_QTY)
+table(data_2$NUT_FRUITS_QTY)
+
+```
+
+```{r}
+## Boxplot to see outliers
+
+boxplot_fruit <- ggplot (data_2, aes(NUT_FRUITS_QTY)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_fruit)
+```
+
+
+```{r}
+ # Recoding to correct for outliers
+
+data_2 <- data_2 %>%
+          mutate(nut_fruit_qty = case_when(
+            NUT_FRUITS_QTY > 5 ~ 5,
+            TRUE ~ NUT_FRUITS_QTY
+          ))
+
+table (data_2$nut_fruit_qty)
+
+summary(data_2$nut_fruit_qty)
+
+```
+
+```{r}
+#Identify and correct issues- outliers_NUT_VEG_QTY
+
+boxplot_fruit <- ggplot (data_2, aes(nut_fruit_qty)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_fruit)
+```
+
+### Identify and correct outliers- PA_TOTAL_SHORT
+
+```{r}
+summary(data_2$PA_TOTAL_SHORT)
+```
+
+```{r}
+## Boxplot to see outliers
+
+
+boxplot_pa <- ggplot (data_2, aes(PA_TOTAL_SHORT)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_pa)
+```
+
+```{r}
+ # Recoding to correct for outliers
+
+data_2 <- data_2 %>%
+          mutate(pa_total_short_rec = case_when(
+           PA_TOTAL_SHORT > 6000 ~ 6000,
+            TRUE ~ PA_TOTAL_SHORT
+          ))
+```
+
+
+```{r}
+summary(data_2$pa_total_short_rec)
+```
+
+
+
+
+```{r}
+## Boxplot to see the outliers after recoding/ correction
+
+boxplot_pa_rec <- ggplot (data_2, aes(pa_total_short_rec)) +
+               geom_boxplot() +
+               coord_flip ()
+plot(boxplot_pa_rec)
+```
+
+### No inconsistent formatting found in data_2
+
+
+```{r}
+## Recoding general health
+
+data_2 <- data_2 %>%
+	mutate(health_recode = case_when(
+		HS_GEN_HEALTH == 1 ~ "1_Poor",
+		HS_GEN_HEALTH == 2 ~ "2_Fair",
+    HS_GEN_HEALTH == 3 ~ "3_Good",
+    HS_GEN_HEALTH == 4 ~ "4_Very good",
+    HS_GEN_HEALTH == 5 ~ "5_Excellent"
+    	))
+
+data_2$health_recode <- as.factor(data_2$health_recode)
+table(data_2$HS_GEN_HEALTH, data_2$health_recode)
+
+```
+
+
+```{r}
+## Recoding asthma status
+
+data_2 <- data_2 %>%
+	mutate(asthma_recode = case_when(
+		DIS_ASTHMA_EVER == 0 ~ "0_Never had asthma",
+		DIS_ASTHMA_EVER == 1 ~ "1_Ever had asthma",
+    DIS_ASTHMA_EVER == 2 ~ "2_Presumed - Never had asthma"
+    	))
+data_2$asthma_recode <- as.factor(data_2$asthma_recode)
+table(data_2$DIS_ASTHMA_EVER, data_2$asthma_recode)
+
+
+```
+
+## Question 2: Joining Datasets
+
+```{r}
+## Combine the two datasets using left join function
+
+data_all <- left_join(data_1, data_2, by = join_by(ID))
+
+```
+
+```{r}
+## Maintaining consistency and completeness- Comparing the datasets
+
+glimpse(data_1)
+glimpse(data_2)
+glimpse(data_all)
+
+```
+
+
+```{r}
+## Maintaining consistency and completeness- Summary statistic
+
+summary(data_1)
+summary(data_2)
+summary(data_all)
+```
+
+```{r}
+## Maintaining consistency and completeness- Checking number of rows only
+nrow(data_1)
+nrow(data_2)
+nrow(data_all)
+
+```
+
+
+```{r}
+## Maintaining consistency and completeness-  Check for duplicates 
+
+duplicate_rows <- data_all[duplicated(data_all), ]
+duplicate_rows
+
+any(duplicated(data_all))
+```
+
+### Based on the above data quality checks mechanisms, the merged dataset is complete and consistent.  
+
+
+## Question 3: Descriptive Statistics
+
+
+```{r}
+# Descriptive statistics for  categorical variables 
+tbl1 <- data_all %>%
+  select(gender_recode, income_recode, health_recode, asthma_recode) %>%
+  tbl_summary(
+    type = all_categorical() ~ "categorical",
+    statistic = all_categorical() ~ "{n} ({p}%)",
+    missing = "ifany", 
+    missing_text = "Missing",     
+    missing_stat = "{n} ({p}%)",
+    label = list(
+      gender_recode ~ "Gender",
+      income_recode ~ "Income Level",
+      health_recode ~ "General Health",
+      asthma_recode ~ "Asthma Status"
+    )
+  ) %>%
+  add_n() %>%
+  bold_labels()
+
+tbl1
+
+```
+
+```{r}
+## Calculating key statistics for Physical Activity
+
+
+summary(data_all$pa_total_short_rec)
+```
+
+
+```{r}
+## Calculating key statistics for Physical Activity- with more details
+
+
+mean_pa <- mean(data_all$pa_total_short_rec, na.rm = TRUE)
+median_pa <- median(data_all$pa_total_short_rec, na.rm = TRUE)
+sd_pa <- sd(data_all$pa_total_short_rec, na.rm = TRUE)
+var_pa <- var(data_all$pa_total_short_rec, na.rm = TRUE)
+
+pa_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_pa, median_pa, sd_pa, var_pa)
+)
+kable(pa_stats, caption = "Statistics for PA_TOTAL_SHORT")
+
+
+```
+
+### Issues identified in physical activity variable: The Mean value= 2309 while the meadian value is 1782 indicating the fact that the distribution is right-skewed. The standard deviation is also high (1982), which could suggest the the high levels of variability/dispersion in physical activity levels among respondents.The Interquartile range is also broad (3732 − 600= 3131) is broad that indicates the wide spread of the data. There is also large missing data-  6763. 
+
+
+```{r}
+## Calculating key statistics for vegetable consumption
+
+summary(data_all$nut_veg_qty)
+```
+
+```{r}
+## Calculating key statistics for for vegetable consumption- - with more details
+
+mean_veg <- mean(data_all$nut_veg_qty, na.rm = TRUE)
+median_veg <- median(data_all$nut_veg_qty, na.rm = TRUE)
+sd_veg <- sd(data_all$nut_veg_qty, na.rm = TRUE)
+var_veg <- var(data_all$nut_veg_qty, na.rm = TRUE)
+
+veg_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_veg, median_veg, sd_veg, var_veg)
+)
+kable(veg_stats, caption = "Statistics for NUT_VEG_QTY")
+
+```
+
+### Issues identified in vegetable consumption variable: The Mean value= 2.67 while the meadian value is 3 indicating the fact that the distribution is slightly left-skewed. There is also large missing data-  2549.
+
+
+```{r}
+## Calculating key statistics for fruit consumption
+
+summary(data_all$nut_fruit_qty)
+```
+
+
+```{r}
+## Calculating key statistics for for fruit consumption- - with more details
+
+mean_fruit <- mean(data_all$nut_fruit_qty, na.rm = TRUE)
+median_fruit <- median(data_all$nut_fruit_qty, na.rm = TRUE)
+sd_fruit <- sd(data_all$nut_fruit_qty, na.rm = TRUE)
+var_fruit <- var(data_all$nut_fruit_qty, na.rm = TRUE)
+
+fruit_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_fruit, median_fruit, sd_fruit, var_fruit)
+)
+kable(fruit_stats, caption = "Statistics for NUT_FRUITS_QTY")
+```
+
+
+### Issues identified in fruit consumption variable: The Mean value= 2.09 while the meadian value is 2.0 indicating the fact that the data is normally ditributed. There is also large missing data-  2426.
+
+
+
+## Question 4: Data Visualization
+
+
+```{r}
+## Bar chart showing income distribution by gender
+
+bar_income <- ggplot(
+  data_all |> mutate(gender_recode = fct_explicit_na(gender_recode, na_level = "Missing")),
+  aes(income_recode, fill = gender_recode)
+) +
+  geom_bar(width = 0.75, color = "white", linewidth = 0.3, position = "stack") +
+  labs(
+    title = "Income Distribution by Gender",
+    x     = "Income Categories",
+    y     = "Number of respondents",
+    fill  = "Gender"
+  ) +
+  scale_fill_viridis_d(option = "D", end = 0.9) +  # color-blind friendly
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title        = element_text(face = "bold", size = 13),
+    plot.subtitle     = element_text(color = "grey30"),
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x= element_blank()
+  )
+
+plot(bar_income)
+
+```
+
+```{r}
+# Boxplot of Physical Activity by General Health
+
+## Filtering rows needed for the plot
+
+data_for_plot2 <- data_all %>%
+  filter(
+    !is.na(pa_total_short_rec),
+    !is.na(health_recode),
+     ) %>%
+  droplevels()  
+
+
+boxplot_health <- ggplot(
+  data_for_plot2,
+  aes(x = health_recode, y = pa_total_short_rec, fill = health_recode)
+) +
+  geom_boxplot(width = 0.7, outlier.shape = NA, alpha = 0.9) +          
+  geom_jitter(aes(color = health_recode),                               
+              width = 0.15, height = 0, alpha = 0.35, size = 1.7, show.legend = FALSE) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 2.8,       
+               fill = "white", color = "black", stroke = 0.3) +
+  scale_fill_viridis_d(option = "D", end = 0.9, guide = "none") +        
+  scale_color_viridis_d(option = "D", end = 0.9, guide = "none") +
+  labs(
+    title = "Physical Activity by General Health",
+    x = "General Health Categories",
+    y = "Physical Activity",
+    caption = "Boxes = IQR with median; diamond = mean; points = individuals"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "grey30"),
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank(),
+    plot.caption  = element_text(color = "grey35", size = 9)
+  )
+
+plot(boxplot_health)
+
+```
+
+
+
+
+
+```{r}
+
+# Heatmap of Mean Physical Activity by Income and Gender
+
+##  Filtering rows needed for the plot
+data_for_plot <- data_all %>%
+  filter(
+    !is.na(pa_total_short_rec),
+    !is.na(income_recode),
+    !is.na(gender_recode)
+  ) %>%
+  droplevels()  
+
+## summary 
+summary <- data_for_plot %>%
+  group_by(income_recode, gender_recode) %>%
+  summarise(
+    n_total   = n(),
+    mean_pa   = mean(pa_total_short_rec, na.rm = TRUE),
+    median_pa = median(pa_total_short_rec, na.rm = TRUE),
+    sd_pa     = sd(pa_total_short_rec, na.rm = TRUE),
+    iqr_pa    = IQR(pa_total_short_rec, na.rm = TRUE),
+    .groups   = "drop"
+  )
+
+
+p_heat <- ggplot(summary,
+                 aes(x = income_recode, y = gender_recode, fill = mean_pa)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(mean_pa, 1)), size = 3.5) +
+  scale_fill_gradientn(
+    colours = c("#2166ac", "#f7f7f7", "#b2182b"),
+    values  = scales::rescale(c(min(summary$mean_pa, na.rm = TRUE),
+                                median(summary$mean_pa, na.rm = TRUE),
+                                max(summary$mean_pa, na.rm = TRUE))),
+    name = "Mean value"
+  ) +
+  labs(
+    title = "Mean Physical Activity Distribution by Income and Gender",
+    x = "Income Categories",
+    y = "Gender Categories",
+    caption = "Mean Values; rows with missing values removed."
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+p_heat
+
+```
+
+=======
+---
+title: "Data_Wrangling"
+output:
+  html_document: default
+  pdf_document: default
+date: "2026-01-06"
+---
+
+
+```{r}
+
+library(rstatix)
+library(tidyverse)
+library(pastecs)
+library(knitr)
+library(epitools)
+library(Epi)
+library(gtsummary)
+library(janitor)
+library(scales)     
+library(viridis)    
+options(scipen=999) 
+```
+
+
+## Question 1: Data Cleaning
+
+
+```{r}
+## Load the first datasets- assignment1_can_path_demographics
+
+data_1 <- read_csv("assignment1_can_path_demographics.csv")
+```
+
+
+```{r}
+## Examining data structure- Columns, and data types
+
+glimpse(data_1)
+```
+
+
+```{r}
+## Examining data structure- Unique values 
+
+table(data_1$SDC_GENDER)
+table(data_1$SDC_INCOME)
+
+```
+
+
+
+```{r}
+## Identify duplicates- rows
+
+duplicate_rows <- data_1[duplicated(data_1), ]
+
+duplicate_rows
+
+```
+
+
+```{r}
+## Identify duplicates- any
+
+any(duplicated(data_1))
+```
+
+### No duplicates, outliers and inconsistent formatting found in data_1
+
+
+```{r}
+## Recoding gender
+
+data_1 <- data_1 %>%
+	mutate(gender_recode = case_when(
+		SDC_GENDER == 1 ~ "1_Male",
+		SDC_GENDER == 2 ~ "2_Female"
+    	))
+data_1$gender_recode <- as.factor(data_1$gender_recode)
+table(data_1$SDC_GENDER, data_1$gender_recode)
+```
+
+
+```{r}
+## Recoding income
+
+data_1 <- data_1 %>%
+	mutate(income_recode = case_when(
+		SDC_INCOME == 1 ~ "1_Less than 10 000 $",
+    SDC_INCOME == 2 ~ "2_10 000 $ - 24 999 $",
+		SDC_INCOME == 3 ~ "3_25 000 $ - 49 999 $",
+		SDC_INCOME == 4 ~ "4_50 000 $ - 74 999 $",
+    SDC_INCOME == 5 ~ "5_75 000 $ - 99 999 $",
+		SDC_INCOME == 6 ~ "6_100 000 $ - 149 999 $",
+    SDC_INCOME == 7 ~ "7_150 000 $ - 199 999 $",
+    SDC_INCOME == 8 ~	"8_200 000 $ or more"
+	))
+
+data_1$income_recode <- as.factor(data_1$income_recode)
+table(data_1$SDC_INCOME, data_1$income_recode)
+
+
+```
+
+```{r}
+## Checking the cleaned data
+
+glimpse(data_1)
+```
+
+
+```{r}
+## Load the second dataset- assignment1_can_path_health
+
+data_2 <- read_csv("assignment1_can_path_health.csv")
+```
+
+
+```{r}
+## Examining data structure- Columns, and data types
+
+glimpse(data_2)
+```
+
+```{r}
+## Examining data structure- Unique values 
+
+table(data_2$HS_GEN_HEALTH)
+table(data_2$DIS_ASTHMA_EVER)
+table(data_2$NUT_VEG_QTY)
+table(data_2$NUT_FRUITS_QTY)
+
+## table(data_2$PA_TOTAL_SHORT) ## Too large to display
+```
+
+
+
+```{r}
+## Identify duplicates- rows
+
+duplicate_rows <- data_2[duplicated(data_2), ]
+duplicate_rows
+```
+
+```{r}
+## Identify duplicates- any
+
+any(duplicated(data_2))
+```
+### No duplicates found in data_2
+
+
+### Identifing and correcting outliers- NUT_VEG_QTY
+
+#### I am thinking that other approaches such as transformation are not under the scope of this assignment and I have followed the data cleasing approaches included in the course materials.
+
+```{r}
+
+table(data_2$NUT_VEG_QTY)
+summary(data_2$NUT_VEG_QTY)
+```
+
+
+```{r}
+## Boxplot to see outliers
+
+boxplot_veg <- ggplot(data_2, aes(NUT_VEG_QTY)) + 
+              geom_boxplot() + 
+              coord_flip()  
+
+plot(boxplot_veg)
+```
+
+
+```{r}
+ # Recoding to correct for outliers 
+
+data_2 <- data_2 %>%
+          mutate(nut_veg_qty = case_when(
+            NUT_VEG_QTY < 1 ~ 1,
+            NUT_VEG_QTY > 5 ~ 5,
+            TRUE ~ NUT_VEG_QTY
+          ))
+
+table (data_2$nut_veg_qty)
+
+summary(data_2$nut_veg_qty)
+
+```
+
+```{r}
+## Boxplot to see the outliers after recoding/ correction
+
+boxplot_veg <- ggplot (data_2, aes(nut_veg_qty)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_veg)
+
+
+```
+
+### Identifing and correcting outliers- NUT_FRUITS_QTY
+
+```{r}
+summary(data_2$NUT_FRUITS_QTY)
+table(data_2$NUT_FRUITS_QTY)
+
+```
+
+```{r}
+## Boxplot to see outliers
+
+boxplot_fruit <- ggplot (data_2, aes(NUT_FRUITS_QTY)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_fruit)
+```
+
+
+```{r}
+ # Recoding to correct for outliers
+
+data_2 <- data_2 %>%
+          mutate(nut_fruit_qty = case_when(
+            NUT_FRUITS_QTY > 5 ~ 5,
+            TRUE ~ NUT_FRUITS_QTY
+          ))
+
+table (data_2$nut_fruit_qty)
+
+summary(data_2$nut_fruit_qty)
+
+```
+
+```{r}
+#Identify and correct issues- outliers_NUT_VEG_QTY
+
+boxplot_fruit <- ggplot (data_2, aes(nut_fruit_qty)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_fruit)
+```
+
+### Identify and correct outliers- PA_TOTAL_SHORT
+
+```{r}
+summary(data_2$PA_TOTAL_SHORT)
+```
+
+```{r}
+## Boxplot to see outliers
+
+
+boxplot_pa <- ggplot (data_2, aes(PA_TOTAL_SHORT)) +
+               geom_boxplot() +
+               coord_flip ()
+
+plot(boxplot_pa)
+```
+
+```{r}
+ # Recoding to correct for outliers
+
+data_2 <- data_2 %>%
+          mutate(pa_total_short_rec = case_when(
+           PA_TOTAL_SHORT > 6000 ~ 6000,
+            TRUE ~ PA_TOTAL_SHORT
+          ))
+```
+
+
+```{r}
+summary(data_2$pa_total_short_rec)
+```
+
+
+
+
+```{r}
+## Boxplot to see the outliers after recoding/ correction
+
+boxplot_pa_rec <- ggplot (data_2, aes(pa_total_short_rec)) +
+               geom_boxplot() +
+               coord_flip ()
+plot(boxplot_pa_rec)
+```
+
+### No inconsistent formatting found in data_2
+
+
+```{r}
+## Recoding general health
+
+data_2 <- data_2 %>%
+	mutate(health_recode = case_when(
+		HS_GEN_HEALTH == 1 ~ "1_Poor",
+		HS_GEN_HEALTH == 2 ~ "2_Fair",
+    HS_GEN_HEALTH == 3 ~ "3_Good",
+    HS_GEN_HEALTH == 4 ~ "4_Very good",
+    HS_GEN_HEALTH == 5 ~ "5_Excellent"
+    	))
+
+data_2$health_recode <- as.factor(data_2$health_recode)
+table(data_2$HS_GEN_HEALTH, data_2$health_recode)
+
+```
+
+
+```{r}
+## Recoding asthma status
+
+data_2 <- data_2 %>%
+	mutate(asthma_recode = case_when(
+		DIS_ASTHMA_EVER == 0 ~ "0_Never had asthma",
+		DIS_ASTHMA_EVER == 1 ~ "1_Ever had asthma",
+    DIS_ASTHMA_EVER == 2 ~ "2_Presumed - Never had asthma"
+    	))
+data_2$asthma_recode <- as.factor(data_2$asthma_recode)
+table(data_2$DIS_ASTHMA_EVER, data_2$asthma_recode)
+
+
+```
+
+## Question 2: Joining Datasets
+
+```{r}
+## Combine the two datasets using left join function
+
+data_all <- left_join(data_1, data_2, by = join_by(ID))
+
+```
+
+```{r}
+## Maintaining consistency and completeness- Comparing the datasets
+
+glimpse(data_1)
+glimpse(data_2)
+glimpse(data_all)
+
+```
+
+
+```{r}
+## Maintaining consistency and completeness- Summary statistic
+
+summary(data_1)
+summary(data_2)
+summary(data_all)
+```
+
+```{r}
+## Maintaining consistency and completeness- Checking number of rows only
+nrow(data_1)
+nrow(data_2)
+nrow(data_all)
+
+```
+
+
+```{r}
+## Maintaining consistency and completeness-  Check for duplicates 
+
+duplicate_rows <- data_all[duplicated(data_all), ]
+duplicate_rows
+
+any(duplicated(data_all))
+```
+
+### Based on the above data quality checks mechanisms, the merged dataset is complete and consistent.  
+
+
+## Question 3: Descriptive Statistics
+
+
+```{r}
+# Descriptive statistics for  categorical variables 
+tbl1 <- data_all %>%
+  select(gender_recode, income_recode, health_recode, asthma_recode) %>%
+  tbl_summary(
+    type = all_categorical() ~ "categorical",
+    statistic = all_categorical() ~ "{n} ({p}%)",
+    missing = "ifany", 
+    missing_text = "Missing",     
+    missing_stat = "{n} ({p}%)",
+    label = list(
+      gender_recode ~ "Gender",
+      income_recode ~ "Income Level",
+      health_recode ~ "General Health",
+      asthma_recode ~ "Asthma Status"
+    )
+  ) %>%
+  add_n() %>%
+  bold_labels()
+
+tbl1
+
+```
+
+```{r}
+## Calculating key statistics for Physical Activity
+
+
+summary(data_all$pa_total_short_rec)
+```
+
+
+```{r}
+## Calculating key statistics for Physical Activity- with more details
+
+
+mean_pa <- mean(data_all$pa_total_short_rec, na.rm = TRUE)
+median_pa <- median(data_all$pa_total_short_rec, na.rm = TRUE)
+sd_pa <- sd(data_all$pa_total_short_rec, na.rm = TRUE)
+var_pa <- var(data_all$pa_total_short_rec, na.rm = TRUE)
+
+pa_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_pa, median_pa, sd_pa, var_pa)
+)
+kable(pa_stats, caption = "Statistics for PA_TOTAL_SHORT")
+
+
+```
+
+### Issues identified in physical activity variable: The Mean value= 2309 while the meadian value is 1782 indicating the fact that the distribution is right-skewed. The standard deviation is also high (1982), which could suggest the the high levels of variability/dispersion in physical activity levels among respondents.The Interquartile range is also broad (3732 − 600= 3131) is broad that indicates the wide spread of the data. There is also large missing data-  6763. 
+
+
+```{r}
+## Calculating key statistics for vegetable consumption
+
+summary(data_all$nut_veg_qty)
+```
+
+```{r}
+## Calculating key statistics for for vegetable consumption- - with more details
+
+mean_veg <- mean(data_all$nut_veg_qty, na.rm = TRUE)
+median_veg <- median(data_all$nut_veg_qty, na.rm = TRUE)
+sd_veg <- sd(data_all$nut_veg_qty, na.rm = TRUE)
+var_veg <- var(data_all$nut_veg_qty, na.rm = TRUE)
+
+veg_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_veg, median_veg, sd_veg, var_veg)
+)
+kable(veg_stats, caption = "Statistics for NUT_VEG_QTY")
+
+```
+
+### Issues identified in vegetable consumption variable: The Mean value= 2.67 while the meadian value is 3 indicating the fact that the distribution is slightly left-skewed. There is also large missing data-  2549.
+
+
+```{r}
+## Calculating key statistics for fruit consumption
+
+summary(data_all$nut_fruit_qty)
+```
+
+
+```{r}
+## Calculating key statistics for for fruit consumption- - with more details
+
+mean_fruit <- mean(data_all$nut_fruit_qty, na.rm = TRUE)
+median_fruit <- median(data_all$nut_fruit_qty, na.rm = TRUE)
+sd_fruit <- sd(data_all$nut_fruit_qty, na.rm = TRUE)
+var_fruit <- var(data_all$nut_fruit_qty, na.rm = TRUE)
+
+fruit_stats <- data.frame(
+  Statistic = c("Mean", "Median", "Standard Deviation", "Variance"),
+  Value = c(mean_fruit, median_fruit, sd_fruit, var_fruit)
+)
+kable(fruit_stats, caption = "Statistics for NUT_FRUITS_QTY")
+```
+
+
+### Issues identified in fruit consumption variable: The Mean value= 2.09 while the meadian value is 2.0 indicating the fact that the data is normally ditributed. There is also large missing data-  2426.
+
+
+
+## Question 4: Data Visualization
+
+
+```{r}
+## Bar chart showing income distribution by gender
+
+bar_income <- ggplot(
+  data_all |> mutate(gender_recode = fct_explicit_na(gender_recode, na_level = "Missing")),
+  aes(income_recode, fill = gender_recode)
+) +
+  geom_bar(width = 0.75, color = "white", linewidth = 0.3, position = "stack") +
+  labs(
+    title = "Income Distribution by Gender",
+    x     = "Income Categories",
+    y     = "Number of respondents",
+    fill  = "Gender"
+  ) +
+  scale_fill_viridis_d(option = "D", end = 0.9) +  # color-blind friendly
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title        = element_text(face = "bold", size = 13),
+    plot.subtitle     = element_text(color = "grey30"),
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x= element_blank()
+  )
+
+plot(bar_income)
+
+```
+
+```{r}
+# Boxplot of Physical Activity by General Health
+
+## Filtering rows needed for the plot
+
+data_for_plot2 <- data_all %>%
+  filter(
+    !is.na(pa_total_short_rec),
+    !is.na(health_recode),
+     ) %>%
+  droplevels()  
+
+
+boxplot_health <- ggplot(
+  data_for_plot2,
+  aes(x = health_recode, y = pa_total_short_rec, fill = health_recode)
+) +
+  geom_boxplot(width = 0.7, outlier.shape = NA, alpha = 0.9) +          
+  geom_jitter(aes(color = health_recode),                               
+              width = 0.15, height = 0, alpha = 0.35, size = 1.7, show.legend = FALSE) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 2.8,       
+               fill = "white", color = "black", stroke = 0.3) +
+  scale_fill_viridis_d(option = "D", end = 0.9, guide = "none") +        
+  scale_color_viridis_d(option = "D", end = 0.9, guide = "none") +
+  labs(
+    title = "Physical Activity by General Health",
+    x = "General Health Categories",
+    y = "Physical Activity",
+    caption = "Boxes = IQR with median; diamond = mean; points = individuals"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "grey30"),
+    axis.text.x   = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank(),
+    plot.caption  = element_text(color = "grey35", size = 9)
+  )
+
+plot(boxplot_health)
+
+```
+
+
+
+
+
+```{r}
+
+# Heatmap of Mean Physical Activity by Income and Gender
+
+##  Filtering rows needed for the plot
+data_for_plot <- data_all %>%
+  filter(
+    !is.na(pa_total_short_rec),
+    !is.na(income_recode),
+    !is.na(gender_recode)
+  ) %>%
+  droplevels()  
+
+## summary 
+summary <- data_for_plot %>%
+  group_by(income_recode, gender_recode) %>%
+  summarise(
+    n_total   = n(),
+    mean_pa   = mean(pa_total_short_rec, na.rm = TRUE),
+    median_pa = median(pa_total_short_rec, na.rm = TRUE),
+    sd_pa     = sd(pa_total_short_rec, na.rm = TRUE),
+    iqr_pa    = IQR(pa_total_short_rec, na.rm = TRUE),
+    .groups   = "drop"
+  )
+
+
+p_heat <- ggplot(summary,
+                 aes(x = income_recode, y = gender_recode, fill = mean_pa)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(mean_pa, 1)), size = 3.5) +
+  scale_fill_gradientn(
+    colours = c("#2166ac", "#f7f7f7", "#b2182b"),
+    values  = scales::rescale(c(min(summary$mean_pa, na.rm = TRUE),
+                                median(summary$mean_pa, na.rm = TRUE),
+                                max(summary$mean_pa, na.rm = TRUE))),
+    name = "Mean value"
+  ) +
+  labs(
+    title = "Mean Physical Activity Distribution by Income and Gender",
+    x = "Income Categories",
+    y = "Gender Categories",
+    caption = "Mean Values; rows with missing values removed."
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+p_heat
+
+```
+
+>>>>>>> 7c34dc07f84c29003cebef56cd51422847fba5b5

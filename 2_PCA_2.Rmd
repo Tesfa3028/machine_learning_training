@@ -1,0 +1,413 @@
+<<<<<<< HEAD
+---
+title: "Assignment_III_PCA"
+output: html_document
+date: "2026-02-04"
+---
+
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(reportRmd)
+library(sjPlot)
+library(plotly)
+library(psych)
+library(parallel)
+library(finalfit)
+library(gtsummary)
+library(mlbench)
+library(vip)
+library(rsample)
+library(tune)
+library(recipes)
+library(yardstick)
+library(parsnip)
+library(glmnet)
+library(themis)
+library(corrr)
+library(performance)
+library(utils)
+library(see)
+```
+
+#### Load Data
+
+```{r}
+data_1 <- read_csv("canpath_imputed.csv")
+
+
+```
+
+```{r}
+names(data_1)
+```
+
+```{r}
+summary(data_1$SDC_EDU_LEVEL)
+```
+```{r}
+# check missing in education level
+sum(is.na(data_1$SDC_EDU_LEVEL))
+
+```
+
+
+
+#### Data Preprocessing
+
+```{r}
+data <- data_1 |> select(ID,
+                       SDC_AGE_CALC, 
+                       PA_TOTAL_SHORT, 
+                       PM_BMI_SR, 
+                       SDC_EDU_LEVEL_AGE, 
+                       PSE_ADULT_WRK_DURATION, 
+                       SDC_INCOME,
+                       SDC_GENDER)
+
+data$SDC_INCOME <- as.factor(data_1$SDC_INCOME)
+data$SDC_GENDER <- as.factor(data_1$SDC_GENDER)
+```
+
+  
+  
+  
+  
+### Preliminary analysis
+
+#### Summary Statistics
+
+```{r}
+rm_covsum(data=data, 
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION'))
+
+
+
+
+```
+
+
+
+```{r}
+## Detailed summary statistics???
+
+rm_covsum(data=data,
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION'))
+
+```
+
+
+
+#### Correlations 
+
+```{r}
+data %>% 
+  correlate() %>%
+  rearrange() %>%
+  shave()  %>%
+  rplot(print_cor=TRUE)
+```
+
+```{r}
+pca_recipe <- recipe(~., data = data) %>%
+  update_role(ID, SDC_INCOME, SDC_GENDER, new_role = "id") %>%
+  step_scale(all_predictors()) %>%
+  step_center(all_predictors()) %>%
+  step_pca(all_predictors(), id = "pca_id")
+
+pca_recipe
+```
+
+```{r}
+pca_prepared <- prep(pca_recipe)
+
+pca_prepared
+```
+
+
+```{r}
+pca_baked <- bake(pca_prepared, data)
+pca_baked
+```
+
+
+```{r}
+pca_variables <- tidy(pca_prepared, id = "pca_id", type = "coef")
+
+ggplot(pca_variables) +
+  geom_point(aes(x = value, y = terms, color = component))+
+  labs(color = NULL) +
+  geom_vline(xintercept=0) + 
+  geom_vline(xintercept=-0.2, linetype = 'dashed') + 
+  geom_vline(xintercept=0.2, linetype = 'dashed') + 
+  facet_wrap(~ component) +
+  theme_minimal()
+```
+
+```{r}
+pca_variances <- tidy(pca_prepared, id = "pca_id", type = "variance")
+
+pca_variance <- pca_variances |> filter(terms == "percent variance")
+pca_variance$component <- as.factor(pca_variance$component)
+pca_variance$comp <- as.numeric(pca_variance$component)
+
+ggplot(pca_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Variance explained (%)") +
+  theme_minimal()
+```
+
+```{r}
+pca_cummul_variance <- pca_variances |> filter(terms == "cumulative percent variance")
+pca_cummul_variance$component <- as.factor(pca_cummul_variance$component)
+pca_cummul_variance$comp <- as.numeric(pca_cummul_variance$component)
+
+ggplot(pca_cummul_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Cummulative Variance explained (%)") +
+  theme_minimal()
+```
+
+```{r}
+pca_corr <- pca_baked |> select(!(ID))
+
+pca_corr %>% 
+  correlate() %>%
+  rearrange() %>%
+  shave()  %>%
+  rplot(print_cor=TRUE)
+```
+
+
+```{r}
+ggplot(pca_baked, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  labs(x = "PC1", y = "PC2") +
+  theme_minimal()
+```
+
+```{r}
+scatter_3d <- plot_ly(pca_baked, x = ~PC3, y = ~PC4, z = ~PC5, type = "scatter3d", mode = "markers",
+                  marker = list(size = 3)) %>%
+                  layout(title = "3D Scatter Plot",
+                         scene = list(xaxis = list(title = "PC3"),
+                                      yaxis = list(title = "PC4"),
+                                      zaxis = list(title = "PC5")))
+
+# Display the 3D scatter plot
+scatter_3d
+```
+
+
+=======
+---
+title: "Assignment_III_PCA"
+output: html_document
+date: "2026-02-04"
+---
+
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(reportRmd)
+library(sjPlot)
+library(plotly)
+library(psych)
+library(parallel)
+library(finalfit)
+library(gtsummary)
+library(mlbench)
+library(vip)
+library(rsample)
+library(tune)
+library(recipes)
+library(yardstick)
+library(parsnip)
+library(glmnet)
+library(themis)
+library(corrr)
+library(performance)
+library(utils)
+library(see)
+```
+
+#### Load Data
+
+```{r}
+data_1 <- read_csv("canpath_imputed.csv")
+
+
+```
+
+```{r}
+names(data_1)
+```
+
+```{r}
+summary(data_1$SDC_EDU_LEVEL)
+```
+```{r}
+# check missing in education level
+sum(is.na(data_1$SDC_EDU_LEVEL))
+
+```
+
+
+
+#### Data Preprocessing
+
+```{r}
+data <- data_1 |> select(ID,
+                       SDC_AGE_CALC, 
+                       PA_TOTAL_SHORT, 
+                       PM_BMI_SR, 
+                       SDC_EDU_LEVEL_AGE, 
+                       PSE_ADULT_WRK_DURATION, 
+                       SDC_INCOME,
+                       SDC_GENDER)
+
+data$SDC_INCOME <- as.factor(data_1$SDC_INCOME)
+data$SDC_GENDER <- as.factor(data_1$SDC_GENDER)
+```
+
+  
+  
+  
+  
+### Preliminary analysis
+
+#### Summary Statistics
+
+```{r}
+rm_covsum(data=data, 
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION'))
+
+
+
+
+```
+
+
+
+```{r}
+## Detailed summary statistics???
+
+rm_covsum(data=data,
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION'))
+
+```
+
+
+
+#### Correlations 
+
+```{r}
+data %>% 
+  correlate() %>%
+  rearrange() %>%
+  shave()  %>%
+  rplot(print_cor=TRUE)
+```
+
+```{r}
+pca_recipe <- recipe(~., data = data) %>%
+  update_role(ID, SDC_INCOME, SDC_GENDER, new_role = "id") %>%
+  step_scale(all_predictors()) %>%
+  step_center(all_predictors()) %>%
+  step_pca(all_predictors(), id = "pca_id")
+
+pca_recipe
+```
+
+```{r}
+pca_prepared <- prep(pca_recipe)
+
+pca_prepared
+```
+
+
+```{r}
+pca_baked <- bake(pca_prepared, data)
+pca_baked
+```
+
+
+```{r}
+pca_variables <- tidy(pca_prepared, id = "pca_id", type = "coef")
+
+ggplot(pca_variables) +
+  geom_point(aes(x = value, y = terms, color = component))+
+  labs(color = NULL) +
+  geom_vline(xintercept=0) + 
+  geom_vline(xintercept=-0.2, linetype = 'dashed') + 
+  geom_vline(xintercept=0.2, linetype = 'dashed') + 
+  facet_wrap(~ component) +
+  theme_minimal()
+```
+
+```{r}
+pca_variances <- tidy(pca_prepared, id = "pca_id", type = "variance")
+
+pca_variance <- pca_variances |> filter(terms == "percent variance")
+pca_variance$component <- as.factor(pca_variance$component)
+pca_variance$comp <- as.numeric(pca_variance$component)
+
+ggplot(pca_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Variance explained (%)") +
+  theme_minimal()
+```
+
+```{r}
+pca_cummul_variance <- pca_variances |> filter(terms == "cumulative percent variance")
+pca_cummul_variance$component <- as.factor(pca_cummul_variance$component)
+pca_cummul_variance$comp <- as.numeric(pca_cummul_variance$component)
+
+ggplot(pca_cummul_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Cummulative Variance explained (%)") +
+  theme_minimal()
+```
+
+```{r}
+pca_corr <- pca_baked |> select(!(ID))
+
+pca_corr %>% 
+  correlate() %>%
+  rearrange() %>%
+  shave()  %>%
+  rplot(print_cor=TRUE)
+```
+
+
+```{r}
+ggplot(pca_baked, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  labs(x = "PC1", y = "PC2") +
+  theme_minimal()
+```
+
+```{r}
+scatter_3d <- plot_ly(pca_baked, x = ~PC3, y = ~PC4, z = ~PC5, type = "scatter3d", mode = "markers",
+                  marker = list(size = 3)) %>%
+                  layout(title = "3D Scatter Plot",
+                         scene = list(xaxis = list(title = "PC3"),
+                                      yaxis = list(title = "PC4"),
+                                      zaxis = list(title = "PC5")))
+
+# Display the 3D scatter plot
+scatter_3d
+```
+
+
+>>>>>>> 7c34dc07f84c29003cebef56cd51422847fba5b5
