@@ -6,9 +6,9 @@ This repository was created as part of the introductory GitHub training componen
 
 This section focuses on preparing, exploring, and visualizing data derived from the CANPATH dataset to ensure data quality and generate preliminary insights. The process includes data cleaning, dataset integration, descriptive statistical analysis, and visualization of key variables using the CANPATH Dataset
 
-# Section 2: Principal Component Analysis 
+# Section 2:PCA, Cluster Tuning, and Linear Regression Analysis
 
-This section focuses on developing practical and conceptual understanding of unsupervised learning methods, with particular emphasis on Principal Component Analysis (PCA) using selected variables from the CANPATH Student Dataset.
+Using the CanPath Student Dataset (Not Imputed), this section covers the implementation of a PCA model with default parameters and its evaluation, followed by tuning procedures for optimal cluster selection. It then compares PCA regression models using BMI as the outcome variable across both the baseline PCA configuration and the tuned cluster configuration to assess performance differences, and concludes with a feature‑importance analysis that identifies, visualizes, and interprets the most influential variables from the PCA regression model.
 
 
 
