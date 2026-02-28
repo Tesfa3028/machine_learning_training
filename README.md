@@ -1,6 +1,6 @@
 ### Introduction
 
-This repository was created as part of the introductory GitHub training component of a machine learning Training offered by the Department of Community Health & Epidemiology (CHEP) at the University of Saskatchewan (USask).
+This repository is created as part of Machine Learning Methods in Health Science (CHEP 898) couse at the Department of Community Health & Epidemiology (CHEP), University of Saskatchewan (USask).
 
 ### 1: Data Wrangling and Visualization 
 
