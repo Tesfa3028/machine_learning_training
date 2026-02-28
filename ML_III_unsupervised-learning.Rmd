@@ -1,0 +1,801 @@
+---
+title: "ML_III_unsupervised-learning"
+output: html_document
+date: "2026-02-04"
+---
+
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(reportRmd)
+library(sjPlot)
+library(plotly)
+library(dplyr)
+library(psych)
+library(parallel)
+library(finalfit)
+library(gtsummary)
+library(mlbench)
+library(vip)
+library(rsample)
+library(tune)
+library(recipes)
+library(yardstick)
+library(parsnip)
+library(glmnet)
+library(themis)
+library(corrr)
+library(performance)
+library(utils)
+library(see)
+library(devtools)
+library(tidyclust)
+library(ClusterR)
+library(klaR)
+library(parsnip)
+library(GGally)
+library(ggplot2)
+library(knitr)
+```
+
+
+```{r}
+# Load Data
+
+data <- read_csv("can_path_data.csv")
+
+```
+
+
+### Q-1: Dataset Exploration
+
+```{r}
+# Creating new dataset with 10 numeric variables plus ID 
+
+data <- data |> dplyr:: select(ID, SDC_AGE_CALC, PA_TOTAL_SHORT, PM_BMI_SR, SDC_EDU_LEVEL_AGE, PSE_ADULT_WRK_DURATION, PM_WAIST_HIP_RATIO_SR, SLE_TIME, NUT_VEG_QTY, NUT_FRUITS_QTY, ALC_CUR_FREQ)
+                 
+```
+
+```{r}
+# Summary Statistics
+
+rm_covsum(data=data, 
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION', 'PM_WAIST_HIP_RATIO_SR', 'SLE_TIME', 'NUT_VEG_QTY', 'NUT_FRUITS_QTY', 'ALC_CUR_FREQ'))
+```
+
+
+```{r}
+# Recoding- Age when completing education and alcohol consumption frequency and removing missing values
+
+
+data <- data %>% mutate(SDC_EDU_LEVEL_AGE = if_else(SDC_EDU_LEVEL_AGE < 0, NA_real_, SDC_EDU_LEVEL_AGE))
+data <- data %>% mutate(ALC_CUR_FREQ = if_else(ALC_CUR_FREQ < 0, NA_real_, ALC_CUR_FREQ))
+
+
+# Drop NA
+data <- drop_na(data)
+```
+
+```{r}
+# Summary Statistics
+
+
+rm_covsum(data=data, 
+covs=c('SDC_AGE_CALC','PA_TOTAL_SHORT', 'PM_BMI_SR', 'SDC_EDU_LEVEL_AGE', 'PSE_ADULT_WRK_DURATION', 'PM_WAIST_HIP_RATIO_SR', 'SLE_TIME', 'NUT_VEG_QTY', 'NUT_FRUITS_QTY', 'ALC_CUR_FREQ'))
+```
+
+
+```{r}
+# Correlations between variables 
+
+data |> 
+  correlate() |>
+  rearrange() |>
+  shave()  |>
+  rplot(print_cor=TRUE) + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 08),
+    axis.text.y = element_text(size = 08)
+    
+    )
+
+```
+
+### Q-2: Baseline PCA Model
+
+
+```{r}
+# Recipe for PCA
+
+pca_recipe <- recipe(~., data = data) |>
+  update_role(ID, new_role = "id") |>
+  step_scale(all_predictors()) |>
+  step_center(all_predictors()) |>
+  step_zv(all_predictors()) |>
+  step_pca(all_predictors(), id = "pca_id")
+
+pca_recipe
+```
+
+
+```{r}
+# Prepare
+
+pca_prepared <- prep(pca_recipe, retain = TRUE)
+
+pca_prepared
+```
+
+
+```{r}
+# Bake
+
+pca_baked <- bake(pca_prepared, data)
+pca_baked
+```
+
+
+```{r}
+# Component loadings- coef (which variables are most influential in defining each component)
+
+pca_variables <- tidy(pca_prepared, id = "pca_id", type = "coef")
+
+```
+
+
+```{r}
+
+ggplot(pca_variables) +
+  geom_point(aes(x = value, y = terms, color = component))+
+  labs(color = NULL) +
+  geom_vline(xintercept=0) + 
+  geom_vline(xintercept=-0.2, linetype = 'dashed') + 
+  geom_vline(xintercept=0.2, linetype = 'dashed') + 
+  facet_wrap(~ component) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 07),
+    axis.text.x = element_text(size = 08)
+          )
+```
+
+```{r}
+# Component loadings- variance (how much variance each variable explains in each component)
+
+
+pca_variances <- tidy(pca_prepared, id = "pca_id", type = "variance")
+
+pca_variance <- pca_variances |> filter(terms == "percent variance")
+pca_variance$component <- as.factor(pca_variance$component)
+pca_variance$comp <- as.numeric(pca_variance$component)
+
+ggplot(pca_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Variance explained (%)") +
+  theme_minimal()
+```
+
+```{r}
+# Bar Chart for explained variance
+
+pca_variance2 <-ggplot(pca_variance, aes(x = component, y = value)) +
+  geom_bar(stat = "identity", fill = "steelblue", color = "black") +
+  geom_text(aes(label = paste0(round(value, 2), "%")), vjust = -0.5, size = 3) +
+  labs(x = "Principal Components", y = "Percentage Explained Variance") +
+  theme_minimal()
+
+pca_variance2
+```
+
+
+#### Interpretation: PC1, PC2, PC3 could be viewed as the strongest components as they  represent the largest (> 40%) of the variation in the data. 
+
+
+```{r}
+# Cumulative percent variance
+
+pca_cummul_variance <- pca_variances |> filter(terms == "cumulative percent variance")
+pca_cummul_variance$component <- as.factor(pca_cummul_variance$component)
+pca_cummul_variance$comp <- as.numeric(pca_cummul_variance$component)
+
+ggplot(pca_cummul_variance, aes(x = component, y = value, group = 1, color = component)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Principal Components", y = "Cummulative Variance explained (%)") +
+  theme_minimal()
+```
+
+#### Interpretation: The cumulative variance plot shows PC1 to PC4 explain about 50% of the variance and PC1 to PC7 explain about 80% of the variance.
+
+
+```{r}
+# Checking the correlation between the components
+
+pca_corr <- pca_baked |> dplyr:: select(!ID)
+
+pca_corr %>% 
+  correlate() %>%
+  rearrange() %>%
+  shave()  %>%
+  rplot(print_cor=TRUE)
+```
+
+
+```{r}
+ggplot(pca_baked, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  labs(x = "PC1", y = "PC2") +
+  theme_minimal()
+```
+#### Interpretation: The correlation plot shows that the principal components are uncorrelated with each other. The scatter plot of PC1 vs. PC2 also shows no clear linear relationship between these two components, which is consistent with the correlation plot.
+
+
+### Q-3: Cluster Selection Tuning
+
+```{r}
+data_clus <- data
+```
+
+
+
+```{r}
+set.seed(10)
+
+### Model
+kmeans_model <- k_means(num_clusters = 3) |>
+                  set_engine("stats")
+kmeans_model
+```
+
+```{r}
+### Recipe 
+
+kmeans_recipe <- recipe(~ ., data = data_clus) %>%
+  update_role(ID, new_role = "id") %>%
+  step_zv(all_predictors()) %>%
+  step_center(all_numeric_predictors()) %>%
+  step_scale(all_numeric_predictors())
+
+
+kmeans_recipe
+
+
+ 
+```
+
+```{r}
+### Workflow
+
+set.seed(10)
+
+kmeans_workflow <- workflow() |>
+    add_recipe(kmeans_recipe) |>
+    add_model(kmeans_model)
+
+```
+
+
+```{r}
+### Fit the model
+
+set.seed(10)
+
+kmeans_fit <- kmeans_workflow |> fit(data=data_clus)
+
+kmeans_fit
+
+
+```
+
+```{r}
+# save the cluster 
+
+clusters <-kmeans_fit |> extract_cluster_assignment()
+clusters <- as.data.frame(clusters)
+
+names(clusters) <- c("cluster")
+data_clus$clusters <- clusters$cluster
+
+```
+
+
+```{r}
+# Check the cluster assignments
+
+summary(data_clus$clusters)
+```
+
+```{r}
+# Visualization
+
+data_clus %>%
+    dplyr::select(c(SDC_AGE_CALC, PA_TOTAL_SHORT, PM_BMI_SR, SDC_EDU_LEVEL_AGE, PSE_ADULT_WRK_DURATION, PM_WAIST_HIP_RATIO_SR, SLE_TIME, NUT_VEG_QTY, NUT_FRUITS_QTY, ALC_CUR_FREQ, clusters)) |>
+
+ggpairs(aes(fill = clusters, color = clusters), upper = list(continuous = wrap("cor", size = 2.5))) +
+  theme_bw() +
+  theme(
+    strip.text = element_text(size = 5, margin = margin(1,1,1,1)),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 5),     
+    axis.text.y = element_text(size = 5),    
+    axis.title  = element_text(size = 7),     
+    legend.text = element_text(size = 6),
+    legend.title = element_text(size = 7),
+    panel.spacing = unit(0.2, "lines")       
+  )
+
+
+```
+
+
+```{r}
+# The centroid of each cluster for each variable
+centroids <- extract_centroids(kmeans_fit)
+centroids_long <- centroids %>% pivot_longer(cols=c("SDC_AGE_CALC", "PA_TOTAL_SHORT", "PM_BMI_SR", "SDC_EDU_LEVEL_AGE", "PSE_ADULT_WRK_DURATION", "PM_WAIST_HIP_RATIO_SR", "SLE_TIME", "NUT_VEG_QTY", "NUT_FRUITS_QTY", "ALC_CUR_FREQ"))
+
+
+
+ggplot(data = centroids_long, aes(x = name, y = value, group = .cluster, color = .cluster)) +
+    geom_point() +
+    geom_line() +
+    labs(x="", y="Value at cluster center") + 
+  theme(axis.text.x = element_text(angle=45, hjust = 1))
+
+
+```
+
+#### Interpretation: Cluster 1 may likely represent a younger, low education, low PA, and low fruit and vegitable consumption group with moderate BMI and waist circumference. Cluster 2 represents educated groups with health lifestyle (higher physical activity, higher fruit and vegitable consumption) and lower BMI and waist circumference. Cluster 3 represents older and busy group with higher BMI and waist circumference, moderate physical activity and poor dietary practice (low consumption of fruit and vegitables and high alcohol consumption).
+
+
+```{r}
+# How many clusters- Model with tuning of cluster #
+
+kmeans_model_tune <- k_means(num_clusters = tune()) %>%
+                  set_engine("stats")
+  
+```
+
+
+```{r}
+# Workflow
+
+kmodes_workflow_tune <- workflow() %>%
+    add_recipe(kmeans_recipe) %>%
+    add_model(kmeans_model_tune)
+
+folds <- vfold_cv(data, v = 2)
+grid <- tibble(num_clusters=1:10)
+
+
+```
+
+
+```{r}
+tuned_model <- tune_cluster(kmodes_workflow_tune, 
+                        resamples = folds, 
+                        grid = grid,
+                       metrics = cluster_metric_set(silhouette_avg), 
+                       control = control_resamples(save_pred = TRUE, 
+                                                  verbose = TRUE, 
+                                                  parallel_over = "everything")
+                       )
+
+
+```
+
+
+```{r}
+collect_metrics(tuned_model) %>% head()
+```
+
+```{r}
+autoplot(tuned_model)
+```
+
+
+#### Interpretation: Although the silhouette values are very low, the plot 4 cluster solution could be optimal.
+
+#### Cluster tunning with 4 clusters
+
+```{r}
+data_2 <- data_clus %>% dplyr::select(-clusters)
+```
+
+
+```{r}
+set.seed(10)
+
+### Model
+kmeans_model_final <- k_means(num_clusters = 4) %>%
+                  set_engine("stats")
+kmeans_model_final
+```
+
+```{r}
+### Recipe 
+
+kmeans_recipe_final <- recipe(~ ., data = data_2) |>
+  update_role(ID, new_role = "id") |>
+  step_zv(all_predictors()) |>
+  step_center(all_numeric_predictors()) |>
+  step_scale(all_numeric_predictors())
+kmeans_recipe_final
+```
+
+```{r}
+### Workflow
+
+set.seed(10)
+
+kmeans_workflow_final <- workflow() |>
+    add_recipe(kmeans_recipe_final) |>
+    add_model(kmeans_model_final)
+
+```
+
+
+```{r}
+### Fit the model
+
+set.seed(10)
+
+kmeans_fit_final <- kmeans_workflow_final |> fit(data=data_2)
+
+kmeans_fit_final
+
+
+```
+
+
+```{r}
+# save the cluster 
+
+clusters <-kmeans_fit_final |> extract_cluster_assignment()
+clusters <- as.data.frame(clusters)
+
+names(clusters) <- c("cluster")
+data_2$clusters <- clusters$cluster
+
+```
+
+
+
+```{r}
+# Workflow
+
+kmodes_workflow_tune <- workflow() %>%
+    add_recipe(kmeans_recipe_final) %>%
+    add_model(kmeans_model_tune)
+
+folds <- vfold_cv(data, v = 2)
+grid <- tibble(num_clusters=1:10)
+
+
+```
+
+
+```{r}
+tuned_model <- tune_cluster(kmodes_workflow_tune, 
+                        resamples = folds, 
+                        grid = grid,
+                       metrics = cluster_metric_set(silhouette_avg), 
+                       control = control_resamples(save_pred = TRUE, 
+                                                  verbose = TRUE, 
+                                                  parallel_over = "everything")
+                       )
+
+
+```
+
+
+```{r}
+collect_metrics(tuned_model) %>% head()
+```
+
+
+### Q-4-1: Linear regression based on Baseline PCA Model
+
+
+```{r}
+
+set.seed(10)
+
+# Create a split object
+
+data_split <- initial_split(data, prop = 0.70)
+
+# Build training data set
+
+train_data <- training(data_split)
+summary(train_data$PM_BMI_SR)
+```
+
+
+```{r}
+# Build testing data set
+
+test_data  <- testing(data_split)
+summary(test_data$PM_BMI_SR)
+```
+
+```{r}
+# Model specification
+
+linear_model <- linear_reg() |>
+        set_engine("glm") |>
+        set_mode("regression") 
+
+# View object properties
+
+linear_model
+
+```
+
+```{r}
+# Recipe for regression
+
+pca_reg_recipe <- recipe(PM_BMI_SR ~., data = train_data) |>
+  update_role(ID, new_role = "id") |>
+  step_scale(all_numeric_predictors()) |>
+  step_center(all_numeric_predictors()) |>
+  step_pca(all_numeric_predictors(), num_comp = 7, id = "pca_id") |>
+  step_zv(all_predictors()) 
+
+pca_reg_recipe
+```
+
+
+```{r}
+# Workflow
+
+bmi_workflow <- 
+        workflow() %>%
+        add_model(linear_model) %>% 
+        add_recipe(pca_reg_recipe)
+
+bmi_workflow
+```
+
+
+```{r}
+# Fit the model
+
+bmi_fit <- 
+  bmi_workflow |>
+  fit(data = train_data)
+```
+
+
+```{r}
+options(scipen = 999, digits = 3)
+
+bmi_fit_extract <- bmi_fit |>
+                    extract_fit_parsnip() |>
+                    tidy()
+bmi_fit_extract
+```
+
+```{r}
+# Predictions
+
+bmi_predicted <- augment(bmi_fit, test_data)
+
+bmi_predicted
+```
+
+
+
+```{r}
+pred_bmi <- predict(bmi_fit,
+                      new_data = test_data)
+summary(pred_bmi$.pred)
+
+
+```
+
+```{r}
+summary(test_data$PM_BMI_SR)
+
+```
+
+
+```{r}
+ggplot(bmi_predicted, aes(x = PM_BMI_SR, y = .pred)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  labs(x = "Measured BMI", y = "Predicted BMI") +
+  theme_minimal()
+```
+
+
+```{r}
+## Quick check of the predictions
+
+pred_true <- test_data |>
+  dplyr::select(PM_BMI_SR) |>
+  bind_cols(pred_bmi)
+
+head(pred_true)
+```
+
+
+#####  Model evaluation
+
+```{r}
+
+bmi_fit |> 
+  extract_fit_engine() |>
+  check_model()
+
+```
+
+
+```{r}
+
+rsq(pred_true, truth = PM_BMI_SR,
+         estimate = .pred)
+
+```
+
+#### Q-4-2: Linear regression with tuning of cluster #
+
+
+```{r}
+set.seed(10)
+
+# Create a split object
+data_split_2 <- initial_split(data_2, prop = 0.70)
+
+# Build training data set
+train_data_2 <- training(data_split_2)
+summary(train_data_2$PM_BMI_SR)
+
+table(train_data_2$clusters)
+```
+
+
+```{r}
+# Build testing data set
+test_data_2  <- testing(data_split_2)
+summary(test_data_2$PM_BMI_SR)
+table(test_data_2$clusters)
+
+```
+
+
+```{r}
+# Model specification
+linear_model_2 <- linear_reg() |>
+        set_engine("glm") |>
+        set_mode("regression")
+
+# View object properties
+linear_model_2
+```
+```{r}
+# Recipe for regression
+
+cluster_reg_recipe2 <- recipe(PM_BMI_SR ~ clusters, data = train_data_2) %>%
+  
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%  # clusters -> dummies
+  step_zv(all_predictors())
+
+cluster_reg_recipe2
+
+```
+
+
+```{r}
+# Workflow
+bmi_workflow_2 <- 
+        workflow() %>%
+        add_model(linear_model_2) %>% 
+        add_recipe(cluster_reg_recipe2)
+bmi_workflow_2
+```
+
+```{r}
+# Fit the model
+
+bmi_fit_2 <- 
+  bmi_workflow_2 |>
+  fit(data = train_data_2)
+
+```
+
+
+```{r}
+options(scipen = 999, digits = 3)
+
+bmi_fit_extract_2 <- bmi_fit_2 |>
+                    extract_fit_parsnip() |>
+                    tidy()
+bmi_fit_extract_2
+```
+
+
+```{r}
+# Predictions
+
+bmi_predicted_2 <- augment(bmi_fit_2, test_data_2)
+
+bmi_predicted_2
+
+```
+
+
+
+```{r}
+## Quick check of the predictions
+pred_true_2 <- test_data_2 |>
+  dplyr::select(PM_BMI_SR) |>
+  bind_cols(bmi_predicted_2)
+
+head(pred_true_2)
+
+```
+
+#### Model evaluation
+
+
+```{r}
+bmi_fit_2 |> 
+  extract_fit_engine() |>
+  check_model()
+```
+
+#### PCA based Linear regression VS Cluster based Linear regression
+##### As it is presented in the above figure, the PCA-based regression model performs better than the cluster-based regression model. In the PCA model, the residual plots look more stable, the fitted values vary smoothly, and the assumptions of linear regression are better satisfied. Because PCA uses continuous components, it retains more information from the original variables and explains variation in BMI more effectively. 
+
+```{r}
+
+pred_true_2 <- pred_true_2 |>
+  rename(PM_BMI_SR = `PM_BMI_SR...1`)
+
+```
+
+
+
+
+```{r}
+
+rsq(pred_true_2, truth = PM_BMI_SR,
+         estimate = .pred)
+```
+
+
+
+#### The mean absolute error for both models is almost the same  (0.06). However, for the resons mentioned above the PCA model could be considered to be a better model in terms of fitting the data. 
+
+
+### Q-5: Feature Importance Analysis
+
+```{r}
+coeff <- tidy(bmi_fit) %>% 
+  arrange(desc(abs(estimate))) %>% 
+  filter(abs(estimate) > 0.5)
+
+
+kable(coeff)
+```
+
+
+```{r}
+# Plot of feature importance
+
+ggplot(coeff, aes(x = term, y = estimate, fill = term)) + geom_col() + coord_flip()
+
+```
+
+#### Interpretation: Based on the feature importance analysis, PC5 and PC1 are the most influential components in predicting BMI. 
+
+
+```{r}
+sessionInfo()
+```
+
+#### Note: I have used copilot to understand the codes and explore the esssignment. 
+
